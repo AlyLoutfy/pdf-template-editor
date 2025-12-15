@@ -340,7 +340,7 @@ function App() {
   }, [currentTheme]);
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/pdf-template-editor">
       <Routes>
         <Route path="/" element={
            <DashboardLayout>
