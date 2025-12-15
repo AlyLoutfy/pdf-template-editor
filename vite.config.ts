@@ -9,4 +9,15 @@ export default defineConfig({
   optimizeDeps: {
     include: ['react-pdf'],
   },
+  build: {
+    chunkSizeWarningLimit: 1600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom', 'zustand', 'immer'],
+          'pdf-vendor': ['react-pdf', 'pdfjs-dist'],
+        },
+      },
+    },
+  },
 })
