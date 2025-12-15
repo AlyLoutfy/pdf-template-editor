@@ -93,7 +93,7 @@ export function SmartAddMenu() {
     if (selectedType === 'paymentPlan') {
       addPaymentPlan({
         id,
-        insertAfterPage: ppMode === 'insert' ? (insertPage ? parseInt(insertPage) : 0) : 0,
+        insertAfterPage: ppMode === 'insert' ? (insertPage ? parseInt(insertPage) - 1 : currentPage - 1) : -1,
         pageReference: ppMode === 'reference' ? ppPageRef : undefined,
         selectedOnly: ppSelectedOnly,
         paymentPlanId: !ppSelectedOnly && ppId ? ppId : undefined,

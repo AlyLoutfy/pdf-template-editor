@@ -44,7 +44,8 @@ export function PdfViewer() {
     setNumPages, setPdfDimensions, textFields, imageFields, selectedFieldIds, activeTool, 
     addTextField, selectField, selectFields, clearSelection, pdfDimensions, getVirtualPages, 
     viewMode, numPages, currentVirtualPageIndex,
-    duplicateSelected, deleteSelected, copyStyles, pasteStyles, addPreset
+    duplicateSelected, deleteSelected, copyStyles, pasteStyles, addPreset,
+    paymentPlans
   } = useEditorStore();
 
   const virtualPages = getVirtualPages();
@@ -556,6 +557,50 @@ export function PdfViewer() {
     );
   };
 
+  // Render Payment Plan Page
+  const renderPaymentPlanPage = (planId: string) => {
+      const plan = paymentPlans.find(p => p.id === planId);
+      
+      return (
+        <div 
+           key={`pp-page-${planId}`}
+           className="bg-white rounded-lg flex flex-col items-center justify-center shadow-2xl"
+           style={{
+             width: pdfDimensions?.width || 595,
+             height: pdfDimensions?.height || 842,
+           }}
+        >
+           <div className="text-center p-8 w-full max-w-2xl">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-xl bg-orange-100 flex items-center justify-center">
+                 <svg className="w-8 h-8 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                 </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-neutral-800">Payment Plan</h2>
+              <p className="text-neutral-500 mt-2">Plan ID: {plan?.paymentPlanId || plan?.id || '(Not configured)'}</p>
+              
+              <div className="mt-8 border border-neutral-200 rounded-lg overflow-hidden">
+                 <div className="bg-neutral-100 px-4 py-2 border-b border-neutral-200 flex justify-between">
+                    <span className="font-medium text-neutral-600 text-sm">Installment</span>
+                    <span className="font-medium text-neutral-600 text-sm">Date</span>
+                    <span className="font-medium text-neutral-600 text-sm">Amount</span>
+                 </div>
+                 {[1, 2, 3, 4, 5].map(i => (
+                    <div key={i} className="px-4 py-3 border-b border-neutral-100 flex justify-between last:border-0 hover:bg-neutral-50">
+                       <span className="text-sm text-neutral-800">Installment {i}</span>
+                       <span className="text-sm text-neutral-500">2025-0{Math.min(9, i+1)}-01</span>
+                       <span className="text-sm text-neutral-800 font-mono">$10,000</span>
+                    </div>
+                 ))}
+                 <div className="bg-neutral-50 px-4 py-2 text-xs text-neutral-400 text-center">
+                    (Preview Placeholder)
+                 </div>
+              </div>
+           </div>
+        </div>
+      );
+  };
+
   // PAGE MODE - single page view with navigation
   if (viewMode === "page") {
     const currentVPage = virtualPages[currentVirtualPageIndex];
@@ -592,6 +637,8 @@ export function PdfViewer() {
           >
             {isImagePage ? (
               <div className="shadow-2xl rounded-lg overflow-hidden">{renderImagePage(currentVPage.imageId!)}</div>
+            ) : currentVPage?.type === 'payment-plan' ? (
+              <div className="shadow-2xl rounded-lg overflow-hidden">{renderPaymentPlanPage(currentVPage.planId)}</div>
             ) : (
               <div
                 ref={(el) => {
@@ -735,7 +782,10 @@ export function PdfViewer() {
                   )}
                   
                   <div className="shadow-2xl rounded-lg overflow-hidden">
-                    {vPage.type === "pdf" ? renderPdfPage(vPage.pageNum) : renderImagePage(vPage.imageId!)}
+                    {vPage.type === "pdf" ? renderPdfPage(vPage.pageNum) : 
+                     vPage.type === "image" ? renderImagePage(vPage.imageId) :
+                     renderPaymentPlanPage(vPage.planId)
+                    }
                   </div>
 
                   {/* Render Menu relative to the PAGE if pending add is on this page */}

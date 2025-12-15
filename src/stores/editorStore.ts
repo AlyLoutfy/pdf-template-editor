@@ -13,7 +13,8 @@ import { generateId } from '../utils';
 /** Virtual page can be a PDF page or an image placeholder */
 export type VirtualPage = 
   | { type: 'pdf'; pageNum: number }
-  | { type: 'image'; imageId: string };
+  | { type: 'image'; imageId: string }
+  | { type: 'payment-plan'; planId: string };
 
 export type { VirtualPage as VirtualPageType };
 
@@ -552,16 +553,50 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   addImageField: (field) => {
       get().saveToHistory();
       set((state) => {
-          // logic to add image field and potentially virtual page
           const newImage = { ...field, id: field.id || generateId() };
-          
-          // If insertAfterPage set, handle virtual page insertion
-          // let newPages = [...state.virtualPages];
-          if (newImage.insertAfterPage !== undefined) {
-             // ... simplify for now, just add field
+          let newVirtualPages = [...state.virtualPages];
+          let newTextFields = [...state.textFields];
+          let newPaymentPlans = [...state.paymentPlans];
+          let newImageFields = [...state.imageFields];
+
+          // If insertNewPages is true, we need to insert a virtual page
+          if (newImage.insertNewPages) {
+              const insertIndex = field.insertAfterPage + 1; // Insert AFTER this page
+              
+              // 1. Insert the Virtual Page
+              const newPage: VirtualPage = { type: 'image', imageId: newImage.id };
+              newVirtualPages.splice(insertIndex, 0, newPage);
+              
+              // 2. Shift existing fields that are on or after this new page
+              // Note: fields store 'page' index. If we insert at index X, all fields with page >= X should be incremented.
+              const shiftFields = (fields: any[]) => fields.map(f => ({
+                  ...f,
+                  page: f.page >= insertIndex ? f.page + 1 : f.page
+              }));
+              
+              newTextFields = shiftFields(newTextFields);
+              // Image fields typically reference the page by ID if virtual, or page index if overlay.
+              // For virtual pages (gallery etc), they are linked by ID to the page, so page index might not matter as much 
+              // UNLESS they are overlaying a PDF page. 
+              // But 'EditorImageField' doesn't strictly have a 'page' index property in the interface shown in types/index.ts?
+              // Wait, let's check EditorTextField - it has 'page'.
+              // EditorPaymentPlan has insertAfterPage/pageReference but not direct 'page' index in interface? 
+              // Check EditorImageField interface in types/index.ts...
+              // It has insertAfterPage.
+              
+              // However, legacy text fields definitely utilize 'page' index.
+              newPaymentPlans = shiftFields(newPaymentPlans); // If they store 'page' index?
           }
+
+          newImageFields.push(newImage);
           
-          return { imageFields: [...state.imageFields, newImage] };
+          useToast.getState().show("Image element added", "success");
+          return { 
+              imageFields: newImageFields,
+              virtualPages: newVirtualPages,
+              textFields: newTextFields,
+              paymentPlans: newPaymentPlans
+          };
       });
   },
   updateImageField: (id, updates) => set((state) => ({ imageFields: state.imageFields.map(f => f.id === id ? { ...f, ...updates } : f) })),
@@ -573,7 +608,47 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   addPaymentPlan: (plan) => {
       get().saveToHistory();
-      set((state) => ({ paymentPlans: [...state.paymentPlans, { ...plan, id: plan.id || generateId() }] }));
+      set((state) => {
+          const newPlan = { ...plan, id: plan.id || generateId() };
+          let newVirtualPlans = [...state.paymentPlans];
+          let newVirtualPages = [...state.virtualPages];
+          let newTextFields = [...state.textFields];
+          
+          // Payment Plans often imply a new page insertion for the table
+          // Check if we are inserting a new page (SmartAddMenu uses 'insert' mode)
+          // The current logic in SmartAddMenu passes insertAfterPage.
+          // If insertAfterPage is >= 0, we treat it as an insertion point.
+          
+          if (plan.insertAfterPage >= 0) {
+               const insertIndex = plan.insertAfterPage + 1;
+               
+               // 1. Insert Virtual Page
+               const newPage: VirtualPage = { type: 'payment-plan', planId: newPlan.id };
+               newVirtualPages.splice(insertIndex, 0, newPage);
+               
+               // 2. Shift text fields
+               newTextFields = newTextFields.map(f => ({
+                  ...f,
+                  page: f.page >= insertIndex ? f.page + 1 : f.page
+               }));
+               
+               // Shift other payment plans?
+               // Assuming explicit page index isn't stored on PaymentPlan but derived from VirtualPage order?
+               // Wait, EditorTextField has 'page'. EditorPaymentPlan has 'insertAfterPage'.
+               // We don't need to shift 'insertAfterPage' property of other plans necessarily, 
+               // unless that property is used for "Static" placement.
+               // But for virtual pages, the source of truth is the virtualPages array.
+          }
+          
+          newVirtualPlans.push(newPlan);
+          
+          useToast.getState().show("Payment Plan added", "success");
+          return {
+              paymentPlans: newVirtualPlans,
+              virtualPages: newVirtualPages,
+              textFields: newTextFields
+          };
+      });
   },
   updatePaymentPlan: (id, updates) => set((state) => ({ paymentPlans: state.paymentPlans.map(p => p.id === id ? { ...p, ...updates } : p) })),
   deletePaymentPlan: (id) => {
