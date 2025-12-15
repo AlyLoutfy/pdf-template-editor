@@ -3,19 +3,22 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useEditorStore } from '../stores/editorStore';
 import { useProjectStore } from '../stores/projectStore';
-import { saveFile } from '../utils/storage';
+
 import { exportToLegacyJSON, exportToV2JSON, downloadJSON } from '../utils/jsonExporter'; // check imports
 import { importJSON } from '../utils/jsonImporter';
 import { generateSamplePdf, downloadPdf } from '../utils/pdfGenerator';
 
 import { Tooltip } from './Tooltip';
 import { ThemeSwitcher } from './ThemeSwitcher';
+import { useToast } from './Toast';
+import { ConfirmModal } from './ConfirmModal';
 
 export function Toolbar() {
   const navigate = useNavigate();
   const { templateId } = useParams<{ templateId: string }>();
   // Project store for touching timestamp
-  const { updateTemplate } = useProjectStore(); 
+  // Project store
+  const { } = useProjectStore(); 
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
@@ -24,6 +27,7 @@ export function Toolbar() {
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [exportDropdownPosition, setExportDropdownPosition] = useState({ top: 0, right: 0 });
   const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   const openDropdown = useCallback(() => {
     if (closeTimeoutRef.current) {
@@ -50,7 +54,7 @@ export function Toolbar() {
   const {
     pdfFile,
     setPdfFile,
-    getSnapshot,
+
     activeTool,
     setActiveTool,
     selectedFieldIds,
@@ -78,40 +82,13 @@ export function Toolbar() {
     redo,
   } = useEditorStore();
 
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success'>('idle');
-
-  const handleSave = async () => {
-    if (!templateId) return;
-    setSaveStatus('saving');
-    try {
-        const snapshot = getSnapshot();
-        // Save editor state
-        await import('idb-keyval').then(idb => idb.set(`template-${templateId}`, snapshot));
-        
-        // Save PDF if it changed
-        if (pdfFile) {
-          await saveFile(templateId, pdfFile);
-        }
-
-        // Update metadata
-        const elementCount = textFields.length + imageFields.length;
-        updateTemplate(templateId, { elementCount });
-        
-        // Success state
-        setSaveStatus('success');
-        
-        // Use Toast
-        const { useToast } = await import('./Toast'); // Dynamic import to avoid cycles if any, or just import at top if safe
-        useToast.getState().show("Changes saved successfully", "success");
-
-        // Reset after delay
-        setTimeout(() => setSaveStatus('idle'), 2000); 
-    } catch (err) {
-        console.error("Save failed", err);
-        setSaveStatus('idle');
-         const { useToast } = await import('./Toast');
-         useToast.getState().show("Failed to save changes", "error");
-    }
+  // Save logic is now inside store to be shared with shortcuts
+  const { saveProject, saveStatus } = useEditorStore();
+  
+  const handleSave = () => {
+      if (templateId) {
+          saveProject(templateId);
+      }
   };
 
   const hasMultipleSelected = selectedFieldIds.length >= 2;
@@ -122,14 +99,25 @@ export function Toolbar() {
   // ... (Import handler remains same)
   
   // Re-declare handlers to ensure they are available in this scope since I am replacing the top block
+  // Re-declare handlers to ensure they are available in this scope since I am replacing the top block
   const handleExportLegacy = () => {
-    const json = exportToLegacyJSON(textFields, imageFields, paymentPlans, numPages);
-    downloadJSON(json, 'template-instructions.json');
+    try {
+      const json = exportToLegacyJSON(textFields, imageFields, paymentPlans, numPages);
+      downloadJSON(json, 'template-instructions.json');
+      useToast.getState().show("Exported Legacy JSON", "success");
+    } catch (e) {
+      useToast.getState().show("Failed to export JSON", "error");
+    }
   };
 
   const handleExportV2 = () => {
-    const json = exportToV2JSON(textFields, imageFields, paymentPlans, numPages);
-    downloadJSON(json, 'template-instructions-v2.json');
+    try {
+      const json = exportToV2JSON(textFields, imageFields, paymentPlans, numPages);
+      downloadJSON(json, 'template-instructions-v2.json');
+      useToast.getState().show("Exported V2 JSON", "success");
+    } catch (e) {
+      useToast.getState().show("Failed to export JSON", "error");
+    }
   };
 
   const handleExportSample = async () => {
@@ -143,9 +131,10 @@ export function Toolbar() {
         imageFields
       );
       downloadPdf(generatedPdfBytes, 'sample-offer.pdf');
+      useToast.getState().show("Sample PDF generated", "success");
     } catch (error) {
       console.error('Failed to generate PDF:', error);
-      alert('Failed to generate sample PDF');
+      useToast.getState().show("Failed to generate sample PDF", "error");
     }
   };
 
@@ -161,6 +150,9 @@ export function Toolbar() {
         setTextFields(result.textFields);
         setImageFields(result.imageFields);
         setPaymentPlans(result.paymentPlans);
+        useToast.getState().show("JSON configuration imported", "success");
+      } else {
+        useToast.getState().show("Failed to import JSON", "error");
       }
     };
     reader.readAsText(file);
@@ -173,7 +165,13 @@ export function Toolbar() {
       {/* Back to Dashboard */}
       <Tooltip content="Back to Dashboard" position="bottom">
         <button 
-            onClick={() => navigate('/')}
+            onClick={() => {
+                if (saveStatus !== 'success') {
+                    setShowExitConfirm(true);
+                    return;
+                }
+                navigate('/');
+            }}
             className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-md transition-colors"
         >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -591,6 +589,20 @@ export function Toolbar() {
           </svg>
         </button>
       </Tooltip>
+
+      <ConfirmModal
+        isOpen={showExitConfirm}
+        onClose={() => setShowExitConfirm(false)}
+        onConfirm={() => {
+          setShowExitConfirm(false);
+          setTimeout(() => navigate('/'), 400); 
+        }}
+        title="Unsaved Changes"
+        message="You have unsaved changes that will be lost if you leave. Are you sure you want to go back to the dashboard?"
+        confirmLabel="Leave without Saving"
+        cancelLabel="Stay"
+        variant="warning"
+      />
     </div>
   );
 }

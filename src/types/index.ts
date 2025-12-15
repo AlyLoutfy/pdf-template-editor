@@ -130,6 +130,8 @@ export interface EditorTextField {
   // For groups/chains
   groupId?: string;
   orderInGroup?: number;
+  width?: number;
+  height?: number;
 }
 
 export interface EditorImageField {

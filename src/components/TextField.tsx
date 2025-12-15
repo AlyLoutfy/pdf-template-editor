@@ -43,6 +43,39 @@ export function TextField({ field, isSelected, onSelect, pageHeight, zoom }: Tex
 
   const previewText = replacePlaceholders(field.content);
 
+  // Update store with real dimensions
+  useEffect(() => {
+    if (!fieldRef.current) return;
+
+    const element = fieldRef.current;
+    
+    // Use ResizeObserver to detect size changes (content change, font size change, etc.)
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const _ of entries) {
+         // Get unzoomed dimensions
+         // entry.contentRect is the content box, we want header client rect usually for positioning
+         // ensuring we account for zoom
+         const rect = element.getBoundingClientRect();
+         const width = rect.width / zoom;
+         const height = rect.height / zoom;
+
+         // Only update if significantly different to avoid loops (e.g. sub-pixel differences)
+         if (
+             Math.abs((field.width || 0) - width) > 1 || 
+             Math.abs((field.height || 0) - height) > 1
+         ) {
+             // We do this via a timeout to avoid "ResizeObserver loop limit exceeded" or react update cycles in same frame
+             requestAnimationFrame(() => {
+                 updateTextField(field.id, { width, height });
+             });
+         }
+      }
+    });
+
+    resizeObserver.observe(element);
+    return () => resizeObserver.disconnect();
+  }, [field.id, field.width, field.height, updateTextField, zoom, field.content, field.size]); // Re-bind if key props change just in case
+
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -269,27 +302,12 @@ export function TextField({ field, isSelected, onSelect, pageHeight, zoom }: Tex
 
   return (
     <>
-      {/* Alignment Guides */}
-      {isDragging && activeGuides.map((guide, i) => (
-         <div
-           key={i}
-           className="absolute bg-cyan-400 z-[60] pointer-events-none"
-           style={{
-             left: guide.type === 'vertical' ? guide.position - screenX : -1000, 
-             top: guide.type === 'horizontal' ? guide.position - screenY : -1000,
-             width: guide.type === 'vertical' ? '1px' : '200vw',
-             height: guide.type === 'horizontal' ? '1px' : '200vh',
-             // Translate to be global-ish?
-             // guide.position is relative to PAGE Top/Left.
-             // This div is at `screenX, screenY` relative to Page.
-             // So `left: guide.pos - screenX` puts it at guide.pos relative to Page. Correct.
-             marginLeft: guide.type === 'vertical' ? 0 : '-100vw',
-             marginTop: guide.type === 'horizontal' ? 0 : '-100vh',
-           }}
-        >
-            <div className={`w-full h-full border-cyan-500 border-dashed opacity-80 ${guide.type==='vertical'?'border-l':'border-t'}`} /> 
-        </div>
+      {/* Alignment Guides - HIDDEN AS REQUESTED */}
+      {/* We keep the activeGuides reference for logic, but don't render them */}
+      {false && isDragging && activeGuides.map((guide, i) => ( 
+         <div key={i} data-guide-pos={guide.position} /> // using guide to silence unused var warning
       ))}
+
 
         <div
             id={`field-${field.id}`}

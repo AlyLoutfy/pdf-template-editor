@@ -40,6 +40,7 @@ export function ShortcutsModal() {
     { keys: ['Del'], desc: 'Delete Selected' },
     { keys: [modKey, 'C'], desc: 'Copy Styles' },
     { keys: [modKey, 'V'], desc: 'Paste Styles' },
+    { keys: [modKey, 'S'], desc: 'Save Project' },
     { keys: ['Arrows'], desc: 'Nudge Selection' },
     { keys: ['Shift', 'Arrows'], desc: 'Nudge (10px)' },
   ];

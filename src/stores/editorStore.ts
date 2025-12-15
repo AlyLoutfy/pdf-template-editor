@@ -66,6 +66,8 @@ interface EditorStore {
   // Hydration & Persistence
   hydrateTemplate: (templateId: string, templateData: any, pdfBlob?: Blob) => void;
   getSnapshot: () => any;
+  saveProject: (templateId: string) => Promise<void>;
+  saveStatus: 'idle' | 'saving' | 'success';
 
   // Fields
   textFields: EditorTextField[];
@@ -193,6 +195,45 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   // Theme
   currentTheme: 'default',
   setTheme: (theme) => set({ currentTheme: theme }),
+  saveStatus: 'idle',
+  saveProject: async (templateId: string) => {
+      set({ saveStatus: 'saving' });
+      const state = get();
+      
+      try {
+        const { getSnapshot, pdfFile, textFields, imageFields } = state;
+        const snapshot = getSnapshot();
+
+        // 1. Save editor state to IndexedDB
+        // We do dynamic import here to keep store initialization fast
+        const idb = await import('idb-keyval');
+        await idb.set(`template-${templateId}`, snapshot);
+        
+        // 2. Save PDF file (if it exists)
+        if (pdfFile) {
+            // We import saveFile from utils. 
+            // NOTE: The store file needs to import 'saveFile' at the top if not present,
+            // or we do dynamic import if we want to avoid circular deps. 
+            // We'll trust the static import at the top for now.
+            const { saveFile } = await import('../utils/storage');
+            await saveFile(templateId, pdfFile);
+        }
+
+        // 3. Update Project Metadata (element count)
+        // Access Project Store directly
+        const { useProjectStore } = await import('./projectStore');
+        const elementCount = textFields.length + imageFields.length;
+        useProjectStore.getState().updateTemplate(templateId, { elementCount });
+
+        set({ saveStatus: 'success' });
+        useToast.getState().show("Changes saved successfully", "success");
+        setTimeout(() => set({ saveStatus: 'idle' }), 2000);
+      } catch (err) {
+        console.error("Save failed", err);
+        set({ saveStatus: 'idle' });
+        useToast.getState().show("Failed to save changes", "error");
+      }
+  },
 
   // PDF State
   pdfFile: null,
@@ -264,7 +305,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       
       set({
           history: newHistory,
-          historyIndex: newHistory.length - 1
+          historyIndex: newHistory.length - 1,
+          saveStatus: 'idle'
       });
   },
 
@@ -322,6 +364,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           history: [],
           historyIndex: -1,
           activeTool: 'select',
+          saveStatus: 'success', // Treat loaded state as clean/saved
       });
   },
 
@@ -357,6 +400,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           currentPage: 1,
           currentVirtualPageIndex: 0
       });
+      if (file) {
+          useToast.getState().show("PDF template uploaded", "success");
+      }
   },
 
   setNumPages: (num) => {
@@ -430,6 +476,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           textFields: processFields(state.textFields),
           paymentPlans: processFields(state.paymentPlans)
       });
+      useToast.getState().show("Page deleted", "success");
   },
 
   duplicatePage: (index) => {
@@ -670,7 +717,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   // Helper to get dimensions (width/height) for any field type
   _getFieldDimensions: (field: any) => {
       if (field.type === 'text' || !field.type) { // Text field (or legacy)
-          // Estimate text width: avg char width approx 0.6 * fontSize
+          // If we have actual measurements from the DOM (stored via TextField component), use them.
+          if (field.width && field.height) {
+              return {
+                  width: field.width,
+                  height: field.height,
+                  x: field.x,
+                  y: field.y
+              };
+          }
+
+          // Fallback: Estimate text width: avg char width approx 0.6 * fontSize
           const content = field.content || '';
           const size = field.size || 12;
           const estimatedWidth = content.length * size * 0.6;

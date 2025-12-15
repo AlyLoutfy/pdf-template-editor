@@ -56,10 +56,20 @@ function EditorView() {
       // Duplicate (Cmd+D) - HANDLE FIRST / CAPTURE PRIORITY
       const isMod = e.metaKey || e.ctrlKey;
       if (isMod && e.key.toLowerCase() === 'd') {
-
           e.preventDefault();
           e.stopPropagation(); // Stop bubbling
           store.duplicateSelected();
+          return;
+      }
+
+      // Save (Cmd+S) - Strict, no Shift (Shift+Cmd+S is Toggle Snap or "Save As")
+      if (isMod && !e.shiftKey && e.key.toLowerCase() === 's') {
+          e.preventDefault();
+          e.stopPropagation();
+          const match = window.location.pathname.match(/\/editor\/([^/]+)/);
+          if (match && match[1]) {
+             store.saveProject(match[1]);
+          }
           return;
       }
 
@@ -159,24 +169,23 @@ function EditorView() {
       // Alignment (Cmd+Shift+Key)
       if (isMod && isShift) {
         switch (e.key.toLowerCase()) {
+            case 'l': e.preventDefault(); e.stopPropagation(); store.alignLeft(); break;
+            case 'c': e.preventDefault(); e.stopPropagation(); store.alignCenter(); break;
+            case 'r': e.preventDefault(); e.stopPropagation(); store.alignRight(); break;
             case 't': 
                 e.preventDefault(); 
                 e.stopPropagation();
-                // e.stopImmediatePropagation(); // Commented out to be less aggressive, but effectively we want to stop it. 
-                // However, user specifically asked for this.
-
                 store.alignTop(); 
                 break;
-            case 'm': e.preventDefault(); store.alignMiddle(); break;
+            case 'm': e.preventDefault(); e.stopPropagation(); store.alignMiddle(); break;
             case 'b': 
                 e.preventDefault(); 
                 e.stopPropagation();
-
                 store.alignBottom(); 
                 break;
-            case 'h': e.preventDefault(); store.distributeHorizontally(); break;
-            case 'v': e.preventDefault(); store.distributeVertically(); break;
-            case 's': e.preventDefault(); store.setSnapEnabled(!store.snapEnabled); break;
+            case 'h': e.preventDefault(); e.stopPropagation(); store.distributeHorizontally(); break;
+            case 'v': e.preventDefault(); e.stopPropagation(); store.distributeVertically(); break;
+            case 's': e.preventDefault(); e.stopPropagation(); store.setSnapEnabled(!store.snapEnabled); break;
         }
       }
 
