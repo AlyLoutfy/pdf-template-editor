@@ -14,6 +14,8 @@ export function FieldEditor() {
     copyStyles,
     pasteStyles,
     copiedStyles,
+    groupSelected,
+    ungroupSelected,
   } = useEditorStore();
 
   const selectedFields = textFields.filter((f) =>
@@ -35,6 +37,8 @@ export function FieldEditor() {
         onDelete={deleteTextField}
         onPasteStyles={pasteStyles}
         copiedStyles={copiedStyles}
+        onGroup={groupSelected}
+        onUngroup={ungroupSelected}
       />
     );
   }
@@ -50,6 +54,8 @@ export function FieldEditor() {
       onDelete={deleteTextField}
       onCopyStyles={copyStyles}
       onPasteStyles={pasteStyles}
+      onCreateGroup={groupSelected}
+      onUngroup={ungroupSelected}
       hasCopiedStyles={!!copiedStyles}
     />
   );

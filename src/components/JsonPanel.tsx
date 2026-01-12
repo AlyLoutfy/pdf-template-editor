@@ -15,7 +15,7 @@ export function JsonPanel() {
   const [copied, setCopied] = useState(false);
 
   const legacyJson = useMemo(
-    () => exportToLegacyJSON(textFields, imageFields, paymentPlans, numPages),
+    () => exportToLegacyJSON(textFields, imageFields, paymentPlans, numPages, useEditorStore.getState().getVirtualPages()),
     [textFields, imageFields, paymentPlans, numPages]
   );
 
@@ -105,6 +105,8 @@ export function JsonPanel() {
     </div>
   );
 }
+
+
 
 
 

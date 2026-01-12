@@ -1,0 +1,29 @@
+{
+  "texts": [
+    { "page": 0, "content": "{unitId}", "x": 1700, "y": 30, "size": 55 },
+    { "page": 0, "content": "Offer Issued {issuanceDate}", "x": 15, "y": 30, "size": 14, "color": { "red": 1, "green": 1, "blue": 1 } },
+
+    { "page": 12, "content": "{unitId}", "x": 50, "y": 450, "size": 30 },
+    { "page": 12, "content": "Unit Type", "requires": "{unitType}", "x": 50, "y": 370, "size": 30, "chain": 1, "order": 1 },
+    { "page": 12, "content": "{unitType}", "requires": "{unitType}", "x": 210, "y": 370, "size": 30, "chain": 2, "order": 1 },
+    { "page": 12, "content": "Floor", "requires": "{floor}", "xEffect": 0, "yEffect": -50, "size": 30, "chain": 1, "order": 2 },
+    { "page": 12, "content": "{floor}", "requires": "{floor}", "xEffect": 0, "yEffect": -50, "size": 30, "chain": 2, "order": 2 },
+    { "page": 12, "content": "Bedrooms", "requires": "{beds}", "xEffect": 0, "yEffect": -50, "size": 30, "chain": 1, "order": 3 },
+    { "page": 12, "content": "{beds}", "requires": "{beds}", "xEffect": 0, "yEffect": -50, "size": 30, "chain": 2, "order": 3 },
+    { "page": 12, "content": "Total Area", "requires": "{bua}", "xEffect": 0, "yEffect": -50, "size": 30, "chain": 1, "order": 4 },
+    { "page": 12, "content": "{bua} sqm", "requires": "{bua}", "xEffect": 0, "yEffect": -50, "size": 30, "chain": 2, "order": 4 },
+    { "page": 12, "content": "Land Area", "requires": "{landArea}", "xEffect": 0, "yEffect": -50, "size": 30, "chain": 1, "order": 5 },
+    { "page": 12, "content": "{landArea} sqm", "requires": "{landArea}", "xEffect": 0, "yEffect": -50, "size": 30, "chain": 2, "order": 5 },
+    { "page": 12, "content": "Uncovered Terrace", "requires": "{uncoveredTerrace}", "xEffect": 0, "yEffect": -50, "size": 30, "chain": 1, "order": 6 },
+    { "page": 12, "content": "{uncoveredTerrace} sqm", "requires": "{uncoveredTerrace}", "xEffect": 0, "yEffect": -50, "size": 30, "chain": 2, "order": 6 },
+    { "page": 12, "content": "Covered Terrace", "requires": "{coveredTerrace}", "xEffect": 0, "yEffect": -50, "size": 30, "chain": 1, "order": 7 },
+    { "page": 12, "content": "{coveredTerrace} sqm", "requires": "{coveredTerrace}", "xEffect": 0, "yEffect": -50, "size": 30, "chain": 2, "order": 7 },
+    { "page": 12, "content": "Price", "requires": "{price}", "xEffect": 0, "yEffect": -50, "size": 30, "chain": 1, "order": 8 },
+    { "page": 12, "content": "{price}", "requires": "{price}", "xEffect": 0, "yEffect": -50, "size": 30, "chain": 2, "order": 8, "isFullNumber": true }
+  ],
+  "images": [
+    { "content": "{unitLocationImage}", "isFullWidth": true, "page": 12, "rotation": null, "x": 0, "y": 0 },
+    { "page": 7, "content": "{buildingLocationImageUrl}", "x": 0, "y": 0, "isFullWidth": true, "rotation": null }
+  ],
+  "paymentPlansPages": [{ "pageReference": "{length}", "selectedPaymentPlan": true }]
+}

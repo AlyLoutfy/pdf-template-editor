@@ -12,7 +12,7 @@ export interface LegacyTextField {
   pageReference?: string;
   content: string;
   x?: number;
-  y: number;
+  y?: number;
   size: number;
   color?: LegacyColor;
   isHorizontallyCentered?: boolean;
@@ -38,7 +38,8 @@ export interface LegacyImageField {
 }
 
 export interface LegacyPaymentPlanPage {
-  pageReference: string;
+  page?: number;
+  pageReference?: string;
   selectedPaymentPlan?: boolean;
   paymentPlanId?: string;
 }
@@ -272,6 +273,8 @@ export interface EditorState {
   presets: Preset[];
   showPresets: boolean;
 }
+
+
 
 
 

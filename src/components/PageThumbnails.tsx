@@ -111,8 +111,9 @@ const ThumbnailItem = ({ page, index, isActive, isDragging, onDragStart, onDragO
       }
 
       if (page.type === 'payment-plan') {
-         // We might not find the plan if it was just deleted? 
-         // But handling robustly:
+         // Verify plan exists (optional safety)
+         // const plan = paymentPlans?.find((p: any) => p.id === page.planId);
+         
          return (
           <button
             onClick={() => onSelect(index)}

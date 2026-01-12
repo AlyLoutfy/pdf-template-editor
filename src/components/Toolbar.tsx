@@ -102,7 +102,7 @@ export function Toolbar() {
   // Re-declare handlers to ensure they are available in this scope since I am replacing the top block
   const handleExportLegacy = () => {
     try {
-      const json = exportToLegacyJSON(textFields, imageFields, paymentPlans, numPages);
+      const json = exportToLegacyJSON(textFields, imageFields, paymentPlans, numPages, useEditorStore.getState().getVirtualPages());
       downloadJSON(json, 'template-instructions.json');
       useToast.getState().show("Exported Legacy JSON", "success");
     } catch (e) {

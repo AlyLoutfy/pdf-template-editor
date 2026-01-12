@@ -7,6 +7,8 @@ interface MultiSelectStateProps {
   onDelete: (id: string) => void;
   onPasteStyles: () => void;
   copiedStyles: Partial<EditorTextField> | null;
+  onGroup: () => void;
+  onUngroup: () => void;
 }
 
 export function MultiSelectState({
@@ -16,6 +18,8 @@ export function MultiSelectState({
   onDelete,
   onPasteStyles,
   copiedStyles,
+  onGroup,
+  onUngroup,
 }: MultiSelectStateProps) {
   const selectedFieldIds = selectedFields.map(f => f.id);
 
@@ -207,6 +211,37 @@ export function MultiSelectState({
         >
           Delete {selectedFields.length} Fields
         </button>
+      </div>
+
+      {/* Section: Grouping */}
+      <div className="space-y-2">
+         <div className="flex items-center gap-2">
+          <div className="h-px flex-1 bg-neutral-800"></div>
+          <span className="text-[10px] font-medium text-neutral-500 uppercase tracking-wider">Grouping</span>
+          <div className="h-px flex-1 bg-neutral-800"></div>
+        </div>
+        
+        <div className="flex gap-2">
+          <button
+            onClick={onGroup}
+            className="flex-1 py-1.5 bg-neutral-800 border border-neutral-700 rounded text-xs text-neutral-300 hover:bg-neutral-700 hover:border-primary-500 transition-colors"
+          >
+            Group
+          </button>
+          
+          <button
+            onClick={onUngroup}
+            className="flex-1 py-1.5 bg-neutral-800 border border-neutral-700 rounded text-xs text-neutral-300 hover:bg-neutral-700 hover:border-primary-500 transition-colors"
+          >
+            Ungroup
+          </button>
+        </div>
+        
+        {selectedFields.some(f => f.groupId) && (
+             <div className="text-[10px] text-primary-400 text-center">
+                Has Grouped Items
+             </div>
+        )}
       </div>
 
       {/* Keyboard shortcuts hint */}

@@ -155,41 +155,69 @@ export function PdfViewer() {
 
   // Track current page index in a ref to avoid re-binding scroll listener constantly
   const pageIndexRef = useRef(currentVirtualPageIndex);
-  useEffect(() => {
-    pageIndexRef.current = currentVirtualPageIndex;
-  }, [currentVirtualPageIndex]);
+  // Track visible range for virtualization
+  const [renderedRange, setRenderedRange] = useState({ start: 0, end: 5 });
 
-  // Track current page based on scroll position (only in scroll mode)
   useEffect(() => {
     if (viewMode !== "scroll") return;
 
     const container = containerRef.current;
     if (!container) return;
 
+    let ticking = false;
+
+    // Separate update range logic to run smoothly
+    const updateRange = () => {
+       const containerRect = container.getBoundingClientRect();
+       const entries = Array.from(virtualPageRefs.current.entries());
+       
+       let start = -1;
+       let end = -1;
+       const buffer = 2; // Keep 2 pages above and below rendered
+
+       for (const [index, el] of entries) {
+           if (!el) continue;
+           const rect = el.getBoundingClientRect();
+           
+           // Check strict intersection with buffer area
+           if (rect.bottom > containerRect.top - 1000 && rect.top < containerRect.bottom + 1000) {
+               if (start === -1) start = index;
+               end = index;
+           }
+       }
+       
+       if (start === -1) { start = 0; end = 2; }
+
+       setRenderedRange(prev => {
+           const newStart = Math.max(0, start - buffer);
+           const newEnd = Math.min(virtualPages.length - 1, end + buffer);
+           
+           if (prev.start !== newStart || prev.end !== newEnd) {
+               return { start: newStart, end: newEnd };
+           }
+           return prev;
+       });
+       
+       ticking = false;
+    };
+
     const handleScroll = () => {
+      // Existing Page Tracking Logic
       if (isProgrammaticScroll.current) return;
 
       const containerRect = container.getBoundingClientRect();
-
       let mostVisibleVirtualIndex = pageIndexRef.current;
       let maxVisibility = 0;
-
-      // Use Array.from to iterate safely
       const entries = Array.from(virtualPageRefs.current.entries());
       
       entries.forEach(([vIndex, pageEl]) => {
         if (!pageEl) return;
         const pageRect = pageEl.getBoundingClientRect();
-        
-        // Calculate intersection with container
         const intersectionTop = Math.max(containerRect.top, pageRect.top);
         const intersectionBottom = Math.min(containerRect.bottom, pageRect.bottom);
         const intersectionHeight = Math.max(0, intersectionBottom - intersectionTop);
-        
-        const visibility = intersectionHeight; 
-
-        if (visibility > maxVisibility) {
-            maxVisibility = visibility;
+        if (intersectionHeight > maxVisibility) {
+            maxVisibility = intersectionHeight;
             mostVisibleVirtualIndex = vIndex;
         }
       });
@@ -199,21 +227,22 @@ export function PdfViewer() {
       if (closestVirtualIndex !== pageIndexRef.current) {
          isUpdatingFromScroll.current = true;
          setCurrentVirtualPageIndex(closestVirtualIndex);
-         
-         // Update ref immediately to prevent duplicate updates before render cycle completes
          pageIndexRef.current = closestVirtualIndex;
-
-         // If it's a PDF page, update currentPage too
          const vPage = virtualPages[closestVirtualIndex];
-         if (vPage && vPage.type === 'pdf') {
-           setCurrentPage(vPage.pageNum);
-         }
+         if (vPage && vPage.type === 'pdf') setCurrentPage(vPage.pageNum);
+      }
+
+      // Update Virtualization Range
+      if (!ticking) {
+         window.requestAnimationFrame(updateRange);
+         ticking = true;
       }
     };
 
     container.addEventListener("scroll", handleScroll);
+    updateRange(); // Initial check
     return () => container.removeEventListener("scroll", handleScroll);
-  }, [viewMode, virtualPages, setCurrentPage, setCurrentVirtualPageIndex]); // Removed currentVirtualPageIndex from deps
+  }, [viewMode, virtualPages, setCurrentPage, setCurrentVirtualPageIndex]);
 
   // Programmatic Scroll Effect
   useEffect(() => {
@@ -757,13 +786,19 @@ export function PdfViewer() {
               </div>
             }
           >
-            {virtualPages.map((vPage, index) => (
+            {virtualPages.map((vPage, index) => {
+               // Virtualization Check
+               const isVisible = index >= renderedRange.start && index <= renderedRange.end;
+               const width = pdfDimensions?.width || 595;
+               const height = pdfDimensions?.height || 842;
+
+              return (
               <div 
                 key={index} 
                 ref={(el) => {
                   if (el) virtualPageRefs.current.set(index, el);
                 }}
-                style={{ marginTop: index > 0 ? PAGE_GAP : 0 }} 
+                style={{ marginTop: index > 0 ? PAGE_GAP : 0, minHeight: height, minWidth: width }} 
                 className="relative group"
               >
                 {/* Separator line between pages */}
@@ -781,15 +816,22 @@ export function PdfViewer() {
                     </div>
                   )}
                   
-                  <div className="shadow-2xl rounded-lg overflow-hidden">
-                    {vPage.type === "pdf" ? renderPdfPage(vPage.pageNum) : 
-                     vPage.type === "image" ? renderImagePage(vPage.imageId) :
-                     renderPaymentPlanPage(vPage.planId)
-                    }
+                  {/* Render content only if visible */}
+                  <div className="shadow-2xl rounded-lg overflow-hidden" style={{ height: height, width: width, background: isVisible ? 'transparent' : '#262626' }}>
+                    {isVisible ? (
+                        vPage.type === "pdf" ? renderPdfPage(vPage.pageNum) : 
+                        vPage.type === "image" ? renderImagePage(vPage.imageId!) :
+                        renderPaymentPlanPage(vPage.planId!)
+                    ) : (
+                        // Placeholder
+                        <div className="flex items-center justify-center h-full w-full text-neutral-700">
+                             <div className="animate-pulse bg-neutral-800/50 w-full h-full" />
+                        </div>
+                    )}
                   </div>
 
                   {/* Render Menu relative to the PAGE if pending add is on this page */}
-                  {pendingAdd && vPage.type === 'pdf' && pendingAdd.page === vPage.pageNum && (
+                  {isVisible && pendingAdd && vPage.type === 'pdf' && pendingAdd.page === vPage.pageNum && (
                    <AddVariableMenu 
                       x={pendingAdd.x * zoom} 
                       y={(pdfDimensions?.height ? pdfDimensions.height - pendingAdd.y : 842 - pendingAdd.y) * zoom}
@@ -798,7 +840,7 @@ export function PdfViewer() {
                    />
                   )}
               </div>
-            ))}
+            )})}
           </Document>
 
           {/* Small bottom margin */}

@@ -176,6 +176,10 @@ interface EditorStore {
   pasteStyles: () => void;
   moveSelected: (dx: number, dy: number) => void;
 
+  // Grouping
+  groupSelected: () => void;
+  ungroupSelected: () => void;
+
   // Alignment
   alignLeft: () => void;
   alignCenter: () => void;
@@ -445,9 +449,48 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       });
   },
 
-  setVirtualPages: (pages) => {
+  setVirtualPages: (newPages) => {
       get().saveToHistory();
-      set({ virtualPages: pages });
+      set((state) => {
+        // 1. Update Payment Plans based on new positions
+        const newPaymentPlans = state.paymentPlans.map(plan => {
+            const newIndex = newPages.findIndex(p => p.type === 'payment-plan' && p.planId === plan.id);
+            if (newIndex === -1) return plan; 
+
+            const updates: Partial<EditorPaymentPlan> = {};
+
+            // Always update insertAfterPage to reflect visual position
+            updates.insertAfterPage = newIndex - 1;
+
+            // If it has a length-based reference, update it
+            if (plan.pageReference && plan.pageReference.includes('length')) {
+                const totalLength = newPages.length;
+                const offset = totalLength - 1 - newIndex;
+                if (offset === 0) {
+                    updates.pageReference = '{length}';
+                } else {
+                    updates.pageReference = `{length} - ${offset}`;
+                }
+            }
+
+            return { ...plan, ...updates };
+        });
+
+        // 2. Update Image Fields similarly
+        const newImageFields = state.imageFields.map(img => {
+             const newIndex = newPages.findIndex(p => p.type === 'image' && p.imageId === img.id);
+             if (newIndex === -1) return img;
+             
+             // Update insertAfterPage
+             return { ...img, insertAfterPage: newIndex - 1 };
+        });
+
+        return { 
+            virtualPages: newPages,
+            paymentPlans: newPaymentPlans,
+            imageFields: newImageFields
+        };
+      });
   },
 
   deletePage: (index) => {
@@ -464,18 +507,33 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           newImageFields = newImageFields.filter(img => img.id !== page.imageId);
       }
 
-      // Remove fields on this page, shift others
-      const processFields = (fields: any[]) => {
+      // Cleanup payment plans if it was a payment plan page
+      let newPaymentPlans = state.paymentPlans;
+      if (page.type === 'payment-plan') {
+          newPaymentPlans = newPaymentPlans.filter(p => p.id !== page.planId);
+      }
+
+      // Remove fields on this page, shift others (for TextFields using 'page')
+      const processTextFields = (fields: any[]) => {
           return fields
             .filter(f => f.page !== index) // Remove
             .map(f => f.page > index ? { ...f, page: f.page - 1 } : f); // Shift decrement
       };
+
+      // Shift 'insertAfterPage' for PaymentPlans and ImageFields
+      // If we delete page at `index`, anything inserted after that page (>= index) needs to shift down
+      const shiftInsertAfter = (items: any[]) => items.map(item => {
+          if (item.insertAfterPage !== undefined && item.insertAfterPage >= index) {
+              return { ...item, insertAfterPage: item.insertAfterPage - 1 };
+          }
+          return item;
+      });
       
       set({ 
           virtualPages: newVirtualPages, 
-          imageFields: newImageFields,
-          textFields: processFields(state.textFields),
-          paymentPlans: processFields(state.paymentPlans)
+          imageFields: shiftInsertAfter(newImageFields),
+          textFields: processTextFields(state.textFields),
+          paymentPlans: shiftInsertAfter(newPaymentPlans)
       });
       useToast.getState().show("Page deleted", "success");
   },
@@ -602,7 +660,16 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   updateImageField: (id, updates) => set((state) => ({ imageFields: state.imageFields.map(f => f.id === id ? { ...f, ...updates } : f) })),
   deleteImageField: (id) => {
       get().saveToHistory();
-       set((state) => ({ imageFields: state.imageFields.filter(f => f.id !== id), selectedFieldIds: state.selectedFieldIds.filter(sid => sid !== id) }));
+      const state = get();
+      // Check if this image has a virtual page
+      const pageIndex = state.virtualPages.findIndex(p => p.type === 'image' && p.imageId === id);
+      if (pageIndex !== -1) {
+          // If it has a page, delete the page (which handles shifting and removing the field)
+          get().deletePage(pageIndex);
+      } else {
+          // Otherwise just remove the field (e.g. might be overlay or configured differently)
+          set((s) => ({ imageFields: s.imageFields.filter(f => f.id !== id), selectedFieldIds: s.selectedFieldIds.filter(sid => sid !== id) }));
+      }
   },
   setImageFields: (fields) => set({ imageFields: fields }),
 
@@ -614,12 +681,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           let newVirtualPages = [...state.virtualPages];
           let newTextFields = [...state.textFields];
           
-          // Payment Plans often imply a new page insertion for the table
-          // Check if we are inserting a new page (SmartAddMenu uses 'insert' mode)
-          // The current logic in SmartAddMenu passes insertAfterPage.
-          // If insertAfterPage is >= 0, we treat it as an insertion point.
-          
-          if (plan.insertAfterPage >= 0) {
+          if (plan.insertAfterPage >= -1) {
                const insertIndex = plan.insertAfterPage + 1;
                
                // 1. Insert Virtual Page
@@ -631,13 +693,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
                   ...f,
                   page: f.page >= insertIndex ? f.page + 1 : f.page
                }));
-               
-               // Shift other payment plans?
-               // Assuming explicit page index isn't stored on PaymentPlan but derived from VirtualPage order?
-               // Wait, EditorTextField has 'page'. EditorPaymentPlan has 'insertAfterPage'.
-               // We don't need to shift 'insertAfterPage' property of other plans necessarily, 
-               // unless that property is used for "Static" placement.
-               // But for virtual pages, the source of truth is the virtualPages array.
           }
           
           newVirtualPlans.push(newPlan);
@@ -653,7 +708,16 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   updatePaymentPlan: (id, updates) => set((state) => ({ paymentPlans: state.paymentPlans.map(p => p.id === id ? { ...p, ...updates } : p) })),
   deletePaymentPlan: (id) => {
       get().saveToHistory();
-      set((state) => ({ paymentPlans: state.paymentPlans.filter(p => p.id !== id) }));
+      const state = get();
+      // Check if this plan has a virtual page
+      const pageIndex = state.virtualPages.findIndex(p => p.type === 'payment-plan' && p.planId === id);
+      if (pageIndex !== -1) {
+          // Delegate to deletePage to handle virtual page removal and content shifting
+          get().deletePage(pageIndex);
+      } else {
+          // Fallback: just remove data
+          set((s) => ({ paymentPlans: s.paymentPlans.filter(p => p.id !== id) }));
+      }
   },
   setPaymentPlans: (plans) => set({ paymentPlans: plans }),
   
@@ -730,7 +794,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       state.textFields.forEach(f => {
           if (state.selectedFieldIds.includes(f.id)) {
               const newId = generateId();
-              newFields.push({ ...f, id: newId, x: f.x + 20, y: f.y + 20 });
+              // Prevent inheriting group membership on duplication
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              const { groupId, orderInGroup, ...rest } = f;
+              newFields.push({ ...rest, id: newId, x: f.x + 20, y: f.y + 20 });
               newIds.push(newId);
           }
       });
@@ -775,6 +842,59 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
               return f;
           })
       });
+  },
+
+  // Grouping
+  groupSelected: () => {
+    const state = get();
+    if (state.selectedFieldIds.length < 1) return;
+    
+    // Only group text fields for now as per legacy JSON requirement
+    const selectedTextFieldIds = state.selectedFieldIds.filter(id => 
+       state.textFields.some(f => f.id === id)
+    );
+
+    if (selectedTextFieldIds.length < 1) return;
+    
+    state.saveToHistory();
+    const groupId = generateId();
+
+    set({
+      textFields: state.textFields.map(f => {
+        if (selectedTextFieldIds.includes(f.id)) {
+          return { ...f, groupId, orderInGroup: undefined }; // orderInGroup will be calculated on export or can be set here if needed, but export logic handles it by Y sorting
+        }
+        return f;
+      })
+    });
+    useToast.getState().show(`${selectedTextFieldIds.length} fields grouped`, 'success');
+  },
+
+  ungroupSelected: () => {
+    const state = get();
+    if (state.selectedFieldIds.length === 0) return;
+    
+    // Check if any selected field has a groupId
+    const hasGrouped = state.selectedFieldIds.some(id => 
+       state.textFields.find(f => f.id === id)?.groupId
+    );
+
+    if (!hasGrouped) return;
+
+    state.saveToHistory();
+    
+    set({
+      textFields: state.textFields.map(f => {
+        if (state.selectedFieldIds.includes(f.id)) {
+          // Remove from group
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { groupId, orderInGroup, ...rest } = f;
+          return { ...rest, groupId: undefined, orderInGroup: undefined };
+        }
+        return f;
+      })
+    });
+    useToast.getState().show('Selection ungrouped', 'success');
   },
 
   // Alignment

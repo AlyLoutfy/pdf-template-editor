@@ -44,7 +44,7 @@ export function importLegacyJSON(json: LegacyJSON): {
         pageReference: field.pageReference,
         content: field.content,
         x: field.x ?? 0,
-        y: field.y,
+        y: field.y ?? 0,
         size: field.size,
         color: field.color ? legacyColorToHex(field.color) : '#000000',
         isHorizontallyCentered: field.isHorizontallyCentered ?? false,
@@ -64,7 +64,7 @@ export function importLegacyJSON(json: LegacyJSON): {
     if (!anchor) return;
 
     let currentX = anchor.x ?? 0;
-    let currentY = anchor.y;
+    let currentY = anchor.y ?? 0;
 
     sorted.forEach((field, index) => {
       if (index > 0) {
@@ -267,6 +267,8 @@ export function importJSON(jsonString: string): {
     return null;
   }
 }
+
+
 
 
 
